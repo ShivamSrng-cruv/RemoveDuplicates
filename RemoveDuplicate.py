@@ -1,46 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# ### Importing necessary libraries 
-
-# In[1]:
-
-
-import time
-import warnings
-import itertools
-import numpy as np
-import pandas as pd
-from IPython.display import display 
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-
-# In[2]:
-
-
-start = time.time()
-
-
-# In[3]:
-
-
-warnings.filterwarnings("ignore")
-
-
-# ### Importing the DataFrame 
-
-# In[4]:
-
-
-df = pd.read_csv("./clean_and_structured_news.csv")
-df.head()
-
-
-# ### Removing the duplicates 
-
-# In[5]:
-
-
 class RemoveDuplicates:
     def __init__(self, df: pd.DataFrame) -> None:
         self.__df = df
@@ -64,7 +21,6 @@ class RemoveDuplicates:
         """
         self.__corpus = self.__combine_text()  # corpus: collection of texts
         self.__vectorizer.fit_transform(self.__corpus)
-        # self.__only_idf = self.__vectorizer.idf_
         return self.__vectorizer
 
     def __get_sentence_embeddings(self, vectorizer, row_no: int, no_of_sentences: int) -> list:
@@ -106,16 +62,11 @@ class RemoveDuplicates:
             sentence_embeddings = [i for (i, j, k, l) in lst]
             sentence_embeddings.sort()
             thresh = np.percentile(sentence_embeddings, 15, interpolation = 'midpoint')
-            Q1 = np.percentile(sentence_embeddings, 25, interpolation = 'midpoint') # 0.00019836157232631794
-            Q2 = np.percentile(sentence_embeddings, 50, interpolation = 'midpoint') # 0.0002630437164689158
-            Q3 = np.percentile(sentence_embeddings, 75, interpolation = 'midpoint') # 0.00012697415854370304
-            IQR = Q3 - Q1 # 0.00012697415854370304
-            #sns.boxplot(sentence_embeddings)
-            #print(f"Q1 25 percentile of sentence_embeddings: {Q1}")
-            #print(f"Q1 50 percentile of sentence_embeddings: {Q2}")
-            #print(f"Q1 75 percentile of sentence_embeddings: {Q3}")
-            #print(f"IQR of sentence_embeddings: {IQR}")
-            threshold = Q1 - 1.5 * IQR # 7.900334510763384e-06
+            Q1 = np.percentile(sentence_embeddings, 25, interpolation = 'midpoint') 
+            Q2 = np.percentile(sentence_embeddings, 50, interpolation = 'midpoint') 
+            Q3 = np.percentile(sentence_embeddings, 75, interpolation = 'midpoint') 
+            IQR = Q3 - Q1
+            threshold = Q1 - 1.5 * IQR 
             return Q1
     
     def duplicate_sentence_indices(self) -> list:
@@ -145,139 +96,3 @@ class RemoveDuplicates:
             __rows = [cleaned_data[k] for [j, k, l, m] in duplicate_sentence_indices]
             __all_rows.append('.'.join(__rows))
         return __all_rows
-
-
-# In[6]:
-
-
-rd = RemoveDuplicates(df)
-
-
-# In[7]:
-
-
-get_ipython().run_cell_magic('time', '', 'vectorizer = rd.train()')
-
-
-# In[8]:
-
-
-get_ipython().run_cell_magic('time', '', "df['sentence_embeddings'] = rd.embeddings_for_sentence(vectorizer)")
-
-
-# In[9]:
-
-
-get_ipython().run_cell_magic('time', '', "df['duplicate_sentence_indices'] = rd.duplicate_sentence_indices()")
-
-
-# In[10]:
-
-
-get_ipython().run_cell_magic('time', '', "df['duplicate_sentences'] = rd.duplicate_sentences()")
-
-
-# In[11]:
-
-
-df.head()
-
-
-# In[12]:
-
-
-def compute_threshold(series: pd.Series) -> float:
-    lst = list(itertools.chain(*series.tolist()))
-    sentence_embeddings = [i for (i,j,k,l) in lst]
-    sentence_embeddings.sort()
-    """Q1 = np.percentile(sentence_embeddings, 25, interpolation = 'midpoint')
-    Q2 = np.percentile(sentence_embeddings, 50, interpolation = 'midpoint')
-    Q3 = np.percentile(sentence_embeddings, 75, interpolation = 'midpoint')
-    IQR = Q3 - Q1 
-    sns.boxplot(sentence_embeddings)
-    print(f"Q1 25 percentile of sentence_embeddings: {Q1}")
-    print(f"Q1 50 percentile of sentence_embeddings: {Q2}")
-    print(f"Q1 75 percentile of sentence_embeddings: {Q3}")
-    print(f"IQR of sentence_embeddings: {IQR}")
-    threshold = Q1 - 1.5 * IQR # 0.0001785034309020805 """
-    res = []
-    for m in range(1, 26):
-        thres = np.percentile(sentence_embeddings, m, interpolation = 'midpoint')
-        removed_sentences_indices = []
-        for (i,j,k,l) in lst:
-            if i < thres:
-                removed_sentences_indices.append([i, j, k, l])
-                removed_sentences_indices.sort()
-        res.append([removed_sentences_indices, len(removed_sentences_indices), m])
-    return res
-
-
-# In[13]:
-
-
-to_find_avg = []
-res = compute_threshold(df['sentence_embeddings'])
-for i in range(1, len(res)):
-    to_find_avg.append(res[i][1])
-    print(f"When {i}th percentile is set as threshold, no. of duplicate sentences found are = {res[i-1][1]}")
-
-
-# In[14]:
-
-
-def create_dataframe(data: list[str], tdidf: list[float], row: list[int], offset: list[int]) -> pd.DataFrame:
-    result = pd.DataFrame()
-    result['data'] = data
-    result['tfidf_value'] = tfidf
-    result['row_no'] = row
-    result['sentence_offset'] = offset
-    return result
-
-
-# In[15]:
-
-
-percentile = int(input("Enter percentile: "))
-data, tfidf, row, offset = [], [], [], []
-for [i,j,k] in res:
-    if k == percentile:
-        for l in i:
-            data.append(l[3])
-            tfidf.append(l[0])
-            row.append(l[2])
-            offset.append(l[1])
-result = create_dataframe(data, tfidf, row, offset)
-result.to_csv('./using_exp_sqrt_mean.csv', index=False)
-display(result)
-
-
-# In[16]:
-
-
-result['tfidf_value'][1]
-
-
-# In[17]:
-
-
-result.sort_values(by='sentence_offset', ascending=False)
-
-
-# In[18]:
-
-
-for i in range(100):
-    print(f"{i+1}. {result['data'][i]}")
-
-
-# In[19]:
-
-
-print(f"Total time taken in complete program execution: {(int)((time.time()-start)//60)} mins {(int)((time.time()-start)%60)} secs")
-
-
-# In[ ]:
-
-
-
-
